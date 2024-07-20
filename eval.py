@@ -5,11 +5,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from datetime import datetime
 from ultralytics import YOLO
-from sklearn.metrics import confusion_matrix, classification_report
 import asyncio
 import cv2
-import seaborn as sns
-import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 
 class_mapping = {}
@@ -209,10 +206,12 @@ class ObjectDetectionEvaluator:
         return bboxes, classes
 
     def draw_bounding_boxes(self, image, bboxes, classes):
-        draw = ImageDraw.Draw(image)    
+        draw = ImageDraw.Draw(image)
+        class_mapping_count = [('HSIL', 0), ('LSIL', 0), ('NORMAL', 0)]
         global class_mapping   
 
         for bbox, cls in zip(bboxes, classes):
+            print(bboxes, classes)
             center_x, center_y, width, height = bbox
             left = center_x - (width / 2)
             top = center_y - (height / 2)
@@ -222,7 +221,12 @@ class ObjectDetectionEvaluator:
             color = self.class_colors.get(class_name, 'white')
             draw.rectangle([left, top, right, bottom], outline=color, width=2)
             draw.text((left, top), class_name, fill=color)
-        return image
+
+            for index, tuple_classes in enumerate(class_mapping_count):
+                if class_name in tuple_classes[0]:
+                    class_mapping_count[index] = (class_name,tuple_classes[1] + 1)
+
+        return image, class_mapping_count
 
     def conv_to_polygon(self, box):
         x, y, w, h = box
@@ -421,25 +425,16 @@ class ObjectDetectionEvaluator:
         return merged_bboxes
     
     async def evaluate(self, dir_path):
-        true_labels = []
-        predicted_labels = []
 
         for file in os.listdir(dir_path):
             if file.endswith('.jpg'):
                 img_path = os.path.join(dir_path, file)
-                annotation_path = os.path.splitext(img_path)[0] + '.txt'
 
                 input_img = cv2.imread(img_path)
-                img_height, img_width, _ = input_img.shape
 
                 input_img_pil = Image.fromarray(cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB))
-                # true_bboxes, true_classes = self.load_yolo_annotation(annotation_path, img_width, img_height)
+
                 detection_results, classification_results = await self.detector.async_run(input_img)
-                if 'bboxes' not in detection_results or len(detection_results['bboxes']) == 0:
-                    # print(true_classes)
-                    # true_labels.extend(true_classes)
-                    # predicted_labels.extend([3] * len(true_classes))  # Adiciona BACKGROUND para predições
-                    continue
 
                 pred_bboxes = [bbox[:4] for bbox in detection_results['bboxes']]
                 pred_classes = [item for sublist in classification_results['pred'] for item in sublist]
@@ -455,80 +450,34 @@ class ObjectDetectionEvaluator:
                 # Combina caixas com IoU > 0
                 filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
 
-                # Associa cada caixa predita com a classe correta, usando IoU > 0.5
-                used_true_indices = set()
-                
-                # for pred_bbox, pred_cls in zip(filtered_pred_bboxes, filtered_pred_classes):
-                #     max_iou = -1
-                #     max_true_idx = -1
-                    
-                    # for true_idx, true_bbox in enumerate(true_bboxes):
-                    #     iou = self.intersection_over_union(pred_bbox, true_bbox)
-                        
-                    #     if iou > max_iou:
-                    #         max_iou = iou
-                    #         max_true_idx = true_idx
-                    
-                    # if max_iou >= 0.01 and max_true_idx not in used_true_indices:
-                    #     true_labels.append(true_classes[max_true_idx])
-                    #     predicted_labels.append(pred_cls)
-                    #     used_true_indices.add(max_true_idx)
-                    # elif max_iou < 0.5:
-                    #     predicted_labels.append(pred_cls)
-                    #     true_labels.append(3)  # Considera como BACKGROUND
-                
-                # Adiciona classes verdadeiras restantes como falsos negativos
-                # for true_idx, true_class in enumerate(true_classes):
-                #     if true_idx not in used_true_indices:
-                #         true_labels.append(true_class)
-                #         predicted_labels.append(3)  # Considera como BACKGROUND
+                img_with_pred_boxes, report = self.draw_bounding_boxes(input_img_pil.copy(), filtered_pred_bboxes, filtered_pred_classes)
 
-                # img_with_true_boxes = self.draw_bounding_boxes(input_img_pil.copy(), true_bboxes, true_classes)
-                img_with_pred_boxes = self.draw_bounding_boxes(input_img_pil.copy(), filtered_pred_bboxes, filtered_pred_classes)
-
-                # img_with_true_boxes.save(os.path.join(self.detector.output_dir, f"{os.path.splitext(file)[0]}_true.jpg"))
                 img_with_pred_boxes.save(os.path.join(self.detector.output_dir, f"{os.path.splitext(file)[0]}_pred.jpg"))
+                
+                print("Removing file {}".format(file))
+                
+                os.remove(dir_path+'/'+file)
 
-        # Converte para numpy arrays para usar classification_report e confusion_matrix
-        true_labels = np.array(true_labels)
-        predicted_labels = np.array(predicted_labels)
-        
-        # Gera o classification report
-        report = classification_report(true_labels, predicted_labels, labels=[0, 1], target_names=['HSIL', 'LSIL'])
-        print("Classification Report:")
-        print(report)
-        
-        # Gera a matriz de confusão
-        cm = confusion_matrix(true_labels, predicted_labels, labels=[0, 1, 3])
-        
-        # # Plota a matriz de confusão
-        # plt.figure(figsize=(8, 6))
-        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['HSIL', 'LSIL', 'BACKGROUND'], yticklabels=['HSIL', 'LSIL', 'BACKGROUND'])
-        # plt.xlabel('Predicted labels')
-        # plt.ylabel('True labels')
-        # plt.title('Confusion Matrix')
-        # plt.show()
-        
-        return report, cm
+                return report
 
 if __name__ == "__main__":
     async def main():
-        detection_model = YOLO('model/anomaly_y8.pt')
-        classification_model = YOLO('model/classification_od_new.pt')
+        detection_model = YOLO('model/anomaly.pt')
+        classification_model = YOLO('model/classification.pt')
         img_size = 640
         img_size_pos = 320
         evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
         dir_path = 'model/test/test'
-        report, cm = await evaluator.evaluate(dir_path)
+        await evaluator.evaluate(dir_path)
 
     asyncio.run(main())
 
 async def predict_image():
-    detection_model = YOLO('model/anomaly_y8.pt')
-    classification_model = YOLO('model/classification_od_new.pt')
+    detection_model = YOLO('model/anomaly.pt')
+    classification_model = YOLO('model/classification.pt')
     img_size = 640
     img_size_pos = 320
     evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
     dir_path = 'model/test/test'
-    report, cm = await evaluator.evaluate(dir_path)
+    return await evaluator.evaluate(dir_path)
 
