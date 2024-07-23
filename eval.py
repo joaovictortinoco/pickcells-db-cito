@@ -467,7 +467,7 @@ if __name__ == "__main__":
         img_size = 640
         img_size_pos = 320
         evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
-        dir_path = 'model/test/test'
+        dir_path = '/mount/src/pickcells-db-cito/'
         await evaluator.evaluate(dir_path)
 
     asyncio.run(main())
@@ -478,6 +478,6 @@ async def predict_image():
     img_size = 640
     img_size_pos = 320
     evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
-    dir_path = 'model/test/test'
+    dir_path = '/mount/src/pickcells-db-cito/'
     return await evaluator.evaluate(dir_path)
 
