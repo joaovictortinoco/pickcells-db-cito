@@ -93,7 +93,7 @@ with col2.container(height=700, border=False):
             for index, uploaded_file in enumerate(uploaded_files):
                 expand = st.expander(f"Análise da amostra #{index+1}", icon=":material/network_intelligence_update:")
                 with expand:
-                    save_folder = './model/test/test'
+                    save_folder = '/mount/src/pickcells-db-cito/'
                     save_path = Path(save_folder, uploaded_file.name)
                     with open(save_path, mode='wb') as w:
                         w.write(uploaded_file.getvalue())
