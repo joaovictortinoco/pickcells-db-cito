@@ -26,16 +26,17 @@ def analyze_classes_from_prediction(report, final_report: bool | None = False):
         else:
             final_report_container.write(f'Tempo decorrido para análise da lâmina: {int((end_time_analysis-init_time_analysis).total_seconds())} segundos')
         final_report_container.write("Adequação amostra: Satisfatória")
-        final_report_container.write("Zona de transformação: N/A")
+        # final_report_container.write("Zona de transformação: N/A")
         final_report_container.write("Organismos: Detectáveis")
-        final_report_container.write(f"Quantidade HSIL: {hsil}")
-        final_report_container.write(f"Quantidade LSIL: {lsil}")
-        final_report_container.write(f"Quantidade NORMAL: {normal}")
-        if hsil - lsil > 0:
+        # final_report_container.write(f"Quantidade HSIL: {hsil}")
+        # final_report_container.write(f"Quantidade LSIL: {lsil}")
+        # final_report_container.write(f"Quantidade NORMAL: {normal}")
+        print(hsil, lsil, normal)
+        if (hsil/(hsil+lsil+normal)) > 0.5:
             final_report_container.warning("Interpretação e Resultado: Positivo para malignidade HSIL")
             final_report_container.warning("Complexidade: Alta complexidade")
             final_report_container.warning("Sugestivo: GRUPO 4")
-        elif lsil - hsil > 0:
+        elif lsil/(hsil+lsil+normal) > 0.5:
             final_report_container.warning("Interpretação e Resultado: Positivo para malignidade LSIL")
             final_report_container.warning("Complexidade: Baixa complexidade")
             final_report_container.warning("Sugestivo: GRUPO 3")
@@ -52,9 +53,6 @@ def analyze_classes_from_prediction(report, final_report: bool | None = False):
                     lsil += classes[1]
                 else:
                     normal += classes[1]
-        st.write(f"HSIL: {hsil} células mapeadas")
-        st.write(f"LSIL: {lsil} células mapeadas")
-        st.write(f"NORMAL: {normal} células mapeadas")
         
 
 st.set_page_config(page_title="PickCells", page_icon='image.png', layout='wide')
@@ -89,7 +87,7 @@ with col2.container(height=700, border=False):
         else:
             progress_bar = st.progress(0, text="Analisando... Por favor aguarde.")
             init_time_analysis = datetime.datetime.now()
-            st.write(f'Início da análise às: {init_time_analysis.strftime("%H:%M:%S")}')
+            st.write(f'Início da análise às: {(init_time_analysis - datetime.timedelta(hours=3)).strftime("%H:%M:%S")}')
             for index, uploaded_file in enumerate(uploaded_files):
                 expand = st.expander(f"Análise da amostra #{index+1}", icon=":material/network_intelligence_update:")
                 with expand:
