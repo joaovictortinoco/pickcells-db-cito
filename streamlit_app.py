@@ -58,7 +58,7 @@ def analyze_classes_from_prediction(report, final_report: bool | None = False):
 
 
 st.set_page_config(page_title="PickCells", page_icon='icon.png', layout='wide')
-st.image(image='pickcells-logo.png')
+st.image(image='.streamlit/pickcells-logo.png')
 title_col1,mid, title_col2 = st.columns([1,2,35])
 st.title(os.getcwd())
 col1, col2 = st.columns(2, gap='large')
