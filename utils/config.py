@@ -1,4 +1,4 @@
 import os
 
 def getPath():
-    return os.getcwd()
+    return f'{os.getcwd()}/production'

@@ -19,7 +19,7 @@ class YoloSensitiveDetector():
         self.img_size_pos = img_size_pos
         self.batch_size = batch_size
         self.post_processor = YoloPosProcessing()
-        self.output_dir = './runs/classification/predict'
+        self.output_dir = f'{config.getPath()}/runs/classification/predict'
         os.makedirs(self.output_dir, exist_ok=True)
 
         if torch.cuda.is_available():
@@ -44,7 +44,7 @@ class YoloSensitiveDetector():
         dict_results["classes"] = detection_results[0].boxes.cls.tolist()
         dict_results["confs"] = detection_results[0].boxes.conf.tolist()
 
-        normal_class_index = 2  # Ajuste conforme necessário
+        normal_class_index = 5  # Ajuste conforme necessário
 
         post_processed_images = self.post_processor.run_post_process(input_img, dict_results)
         dict_results_pos = {'names': {}, 'softs': [], 'pred': []}
@@ -81,8 +81,8 @@ class YoloSensitiveDetector():
             dict_results['classes'].pop(index)
             dict_results['confs'].pop(index)
 
-        annotated_img = self.post_processor.draw_bounding_boxes(input_img, dict_results, dict_results_pos)
-        annotated_img.save(os.path.join(self.output_dir, "annotated_image.jpg"))
+        # annotated_img = self.post_processor.draw_bounding_boxes(input_img, dict_results, dict_results_pos)
+        # annotated_img.save(os.path.join(self.output_dir, "annotated_image.jpg"))
 
         return dict_results, dict_results_pos
 
@@ -372,64 +372,65 @@ class ObjectDetectionEvaluator:
         return iou
 
 
-    def merge_boxes_same_class(self, bboxes, classes):
-        merged_bboxes = []
-        used = [False] * len(bboxes)
+    # def merge_boxes_same_class(self, bboxes, classes):
+    #     merged_bboxes = []
+    #     used = [False] * len(bboxes)
         
-        for i in range(len(bboxes)):
-            if used[i]:
-                continue
+    #     for i in range(len(bboxes)):
+    #         if used[i]:
+    #             continue
             
-            current_bbox = bboxes[i]
-            current_class = classes[i]
-            x_center, y_center, width, height = current_bbox
+    #         current_bbox = bboxes[i]
+    #         current_class = classes[i]
+    #         x_center, y_center, width, height = current_bbox
             
-            # Calcular limites da bounding box atual a partir do centro
-            x1 = x_center - width / 2
-            y1 = y_center - height / 2
-            x2 = x_center + width / 2
-            y2 = y_center + height / 2
+    #         # Calcular limites da bounding box atual a partir do centro
+    #         x1 = x_center - width / 2
+    #         y1 = y_center - height / 2
+    #         x2 = x_center + width / 2
+    #         y2 = y_center + height / 2
             
-            for j in range(i + 1, len(bboxes)):
-                if used[j]:
-                    continue
+    #         for j in range(i + 1, len(bboxes)):
+    #             if used[j]:
+    #                 continue
                 
-                bbox_to_compare = bboxes[j]
-                class_to_compare = classes[j]
-                if current_class != class_to_compare:
-                    continue
+    #             bbox_to_compare = bboxes[j]
+    #             class_to_compare = classes[j]
+    #             if current_class != class_to_compare:
+    #                 continue
                 
-                x1_comp, y1_comp, w_comp, h_comp = bbox_to_compare
-                x2_comp = x1_comp + (w_comp / 2)
-                y2_comp = y1_comp + (h_comp / 2)
+    #             x1_comp, y1_comp, w_comp, h_comp = bbox_to_compare
+    #             x2_comp = x1_comp + (w_comp / 2)
+    #             y2_comp = y1_comp + (h_comp / 2)
                 
-                # Verificar a interseção usando a função intersection_over_union modificada
-                if self.intersection_over_union(current_bbox, bbox_to_compare) > 0:
-                    # Atualizar a bounding box atual para incluir a outra
-                    x1 = min(x1, x1_comp)
-                    y1 = min(y1, y1_comp)
-                    x2 = max(x2, x2_comp)
-                    y2 = max(y2, y2_comp)
+    #             # Verificar a interseção usando a função intersection_over_union modificada
+    #             if self.intersection_over_union(current_bbox, bbox_to_compare) > 0:
+    #                 # Atualizar a bounding box atual para incluir a outra
+    #                 x1 = min(x1, x1_comp)
+    #                 y1 = min(y1, y1_comp)
+    #                 x2 = max(x2, x2_comp)
+    #                 y2 = max(y2, y2_comp)
                     
-                    # Marcar bbox_to_compare como usada
-                    used[j] = True
+    #                 # Marcar bbox_to_compare como usada
+    #                 used[j] = True
             
-            # Calcular novas coordenadas do centro e dimensões da bounding box agrupada
-            new_x_center = (x1 + x2) / 2
-            new_y_center = (y1 + y2) / 2
-            new_width = x2 - x1
-            new_height = y2 - y1
+    #         # Calcular novas coordenadas do centro e dimensões da bounding box agrupada
+    #         new_x_center = (x1 + x2) / 2
+    #         new_y_center = (y1 + y2) / 2
+    #         new_width = x2 - x1
+    #         new_height = y2 - y1
             
-            # Adicionar a bounding box agrupada à lista final
-            merged_bboxes.append([new_x_center, new_y_center, new_width, new_height])
+    #         # Adicionar a bounding box agrupada à lista final
+    #         merged_bboxes.append([new_x_center, new_y_center, new_width, new_height])
         
-        return merged_bboxes
+    #     return merged_bboxes
     
     async def evaluate(self, dir_path):
 
         for file in os.listdir(dir_path):
             if file.endswith(('.jpg', '.png')):
                 img_path = os.path.join(dir_path, file)
+                print(img_path)
 
                 input_img = cv2.imread(img_path)
 
@@ -444,16 +445,16 @@ class ObjectDetectionEvaluator:
                 filtered_pred_bboxes = []
                 filtered_pred_classes = []
                 for bbox, cls in zip(pred_bboxes, pred_classes):
-                    if cls in [0, 1, 3]:  # Considera apenas as classes relevantes
+                    if cls in [0, 1, 2]:  # Considera apenas as classes relevantes
                         filtered_pred_bboxes.append(bbox)
                         filtered_pred_classes.append(cls)
 
                 # Combina caixas com IoU > 0
-                filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
+                # filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
 
                 img_with_pred_boxes, report = self.draw_bounding_boxes(input_img_pil.copy(), filtered_pred_bboxes, filtered_pred_classes)
-
-                img_with_pred_boxes.save(os.path.join(self.detector.output_dir, f"{os.path.splitext(file)[0]}_pred.jpg"))
+                
+                img_with_pred_boxes.save(os.path.join(self.detector.output_dir, f"{file}_pred.jpg"))
                 
                 print("Removing file {}".format(file))
                 
@@ -468,7 +469,7 @@ if __name__ == "__main__":
         img_size = 640
         img_size_pos = 320
         evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
-        dir_path = f"{config.getPath()}/production"
+        dir_path = f"{config.getPath()}"
         await evaluator.evaluate(dir_path)
 
     asyncio.run(main())
@@ -479,6 +480,6 @@ async def predict_image():
     img_size = 640
     img_size_pos = 320
     evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
-    dir_path = f"{config.getPath()}/production"
+    dir_path = config.getPath()
     return await evaluator.evaluate(dir_path)
 
