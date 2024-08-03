@@ -427,7 +427,7 @@ class ObjectDetectionEvaluator:
     async def evaluate(self, dir_path):
 
         for file in os.listdir(dir_path):
-            if file.endswith('.jpg'):
+            if file.endswith(('.jpg', '.png')):
                 img_path = os.path.join(dir_path, file)
 
                 input_img = cv2.imread(img_path)
