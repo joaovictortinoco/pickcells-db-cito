@@ -34,7 +34,7 @@ class YoloSensitiveDetector():
         if input_img.shape[2] == 3:  # Verifica se a imagem tem 3 canais
             input_img = cv2.cvtColor(input_img, cv2.COLOR_BGR2RGB)
         input_img = Image.fromarray(input_img)
-        detection_results = self.detection_model.predict(source=input_img, save=True, save_conf=False, verbose=False, imgsz=self.img_size, conf=0.2)
+        detection_results = self.detection_model.predict(source=input_img, save=True, save_conf=False, verbose=False, imgsz=self.img_size, conf=0.1, iou=0.4)
         if len(detection_results) == 0 or len(detection_results[0].boxes) == 0:
             return {}, {}
 
