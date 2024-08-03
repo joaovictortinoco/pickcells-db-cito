@@ -55,10 +55,8 @@ def analyze_classes_from_prediction(report, final_report: bool | None = False):
                 else:
                     normal += classes[1]
         
-
-
 st.set_page_config(page_title="PickCells", page_icon='icon.png', layout='wide')
-st.image(image='.streamlit/pickcells-logo.png')
+st.image(image='pickcells-logo.png')
 title_col1,mid, title_col2 = st.columns([1,2,35])
 st.title(os.getcwd())
 col1, col2 = st.columns(2, gap='large')
@@ -92,7 +90,7 @@ with col2.container(height=700, border=False):
             for index, uploaded_file in enumerate(uploaded_files):
                 expand = st.expander(f"Análise da amostra #{index+1}", icon=":material/network_intelligence_update:")
                 with expand:
-                    save_folder = '/mount/src/pickcells-db-cito/'
+                    save_folder = '/mount/src/pickcells-db-cito/production'
                     save_path = Path(save_folder, uploaded_file.name)
                     with open(save_path, mode='wb') as w:
                         w.write(uploaded_file.getvalue())
