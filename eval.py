@@ -102,15 +102,12 @@ class YoloPosProcessing():
     def extract_cropped_images(self, image_np, bboxes):
         cropped_images = []
         for bbox in bboxes:
-            x_min, y_min, width, height = bbox
+            center_x, center_y, width, height = bbox
 
             width = float(width)
             height = float(height)
             max_value = max(width, height)
             width = height = max_value
-
-            center_x = x_min + width / 2
-            center_y = y_min + height / 2
 
             left = center_x - (width / 2)
             top = center_y - (height / 2)
@@ -763,7 +760,7 @@ async def predict_image_local(path: str):
     confidence_threshold = 0.9 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
     batch_size = 16 # Ajustar conforme recurso computacional: Inferência em batch dos crops que chegam no modelo de classificação
     merged_objects = True # Utiliza a função 'agg_clusters_objects' para fazer o merge nas bboxes
-    iou = 0.4 # Threshold de iou usando no Non max supression do localizador. Quanto maior o threshold, menos bounding boxes localizadas(é invertido mesmo)
+    iou = 0.4 # Threshold de iou usando no Non max supression do localizador. Quanto menor o threshold, menos bounding boxes localizadas
     evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos, batch_size, iou)
     
     return await evaluator.evaluate(path, classes_of_interest, confidence_threshold, merged_objects)
@@ -867,7 +864,7 @@ async def predict_image():
     confidence_threshold = 0.9 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
     batch_size = 8 # Ajustar conforme recurso computacional: Inferência em batch dos crops que chegam no modelo de classificação
     merged_objects = True # Utiliza a função 'agg_clusters_objects' para fazer o merge nas bboxes
-    iou = 0.4 # Threshold de iou usando no Non max supression do localizador. Quanto maior o threshold, menos bounding boxes localizadas(é invertido mesmo)
+    iou = 0.4 # Threshold de iou usando no Non max supression do localizador. Quanto menor o threshold, menos bounding boxes localizadas
     evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos, batch_size, iou)
     dir_path = config.getPath()
     return await evaluator.evaluate(dir_path, classes_of_interest, confidence_threshold, merged_objects)
