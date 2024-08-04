@@ -133,9 +133,11 @@ class YoloPosProcessing():
             cropped_images.append(padded_img)
 
         return cropped_images
+
 class ObjectDetectionEvaluator:
     def __init__(self, detection_model, classification_model, img_size, img_size_pos, batch_size, iou):
         self.detector = YoloSensitiveDetector(detection_model, classification_model, img_size, img_size_pos, batch_size, iou)
+
         self.class_colors = {
             'HSIL': 'red',
             'LSIL': 'orange',
@@ -151,7 +153,6 @@ class ObjectDetectionEvaluator:
             for line in f:
                 values = list(map(float, line.strip().split()))
                 class_id = int(values[0])
-
                 if len(values) == 5:
                     # Bounding box annotation
                     x_center = values[1] * img_width
@@ -430,6 +431,7 @@ class ObjectDetectionEvaluator:
         iou = inter_area / (box1_area + box2_area - inter_area)
         return iou
 
+
     def min_distance_between_boxes(self, box1, box2):
         # Extrair coordenadas e dimensões das caixas delimitadoras
         x1_min, y1_min, w1, h1 = box1
@@ -659,7 +661,6 @@ class ObjectDetectionEvaluator:
         for file in os.listdir(dir_path):
             if file.endswith(('.jpg', '.png')):
                 img_path = os.path.join(dir_path, file)
-                print(img_path)
 
                 input_img = cv2.imread(img_path)
                 img_height, img_width = input_img.shape[:2]
@@ -678,7 +679,6 @@ class ObjectDetectionEvaluator:
                 filtered_pred_bboxes = []
                 filtered_pred_classes = []
                 filtered_pred_confidences = []
-                
                 for bbox, cls, confidence in zip(pred_bboxes, pred_classes, pred_confidences):
                     if cls in classes_of_interest and confidence >= confidence_threshold:  # Considera apenas as classes relevantes
                         filtered_pred_bboxes.append(bbox)
