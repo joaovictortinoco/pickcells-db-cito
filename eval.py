@@ -11,8 +11,9 @@ from shapely.geometry import Polygon
 from utils import config
 
 class_mapping = {}
+
 class YoloSensitiveDetector():
-    def __init__(self, detection_model, classification_model, img_size, img_size_pos, batch_size=8):
+    def __init__(self, detection_model, classification_model, img_size, img_size_pos, batch_size):
         self.detection_model = detection_model
         self.classification_model = classification_model
         self.img_size = img_size
@@ -44,8 +45,6 @@ class YoloSensitiveDetector():
         dict_results["classes"] = detection_results[0].boxes.cls.tolist()
         dict_results["confs"] = detection_results[0].boxes.conf.tolist()
 
-        normal_class_index = 5  # Ajuste conforme necessário
-
         post_processed_images = self.post_processor.run_post_process(input_img, dict_results)
         dict_results_pos = {'names': {}, 'softs': [], 'pred': []}
 
@@ -69,20 +68,14 @@ class YoloSensitiveDetector():
             )
 
             for j, result in enumerate(results):
-                if result.probs.top1 != normal_class_index:
-                    dict_results_pos['names'] = result.names
-                    dict_results_pos['softs'].append(result.probs.data.tolist())
-                    dict_results_pos['pred'].append([result.probs.top1])
-                else:
-                    indices_to_remove.append(batch_start + j)
+                dict_results_pos['names'] = result.names
+                dict_results_pos['softs'].append(result.probs.data.tolist())
+                dict_results_pos['pred'].append([result.probs.top1])
 
         for index in sorted(indices_to_remove, reverse=True):
             dict_results['bboxes'].pop(index)
             dict_results['classes'].pop(index)
             dict_results['confs'].pop(index)
-
-        # annotated_img = self.post_processor.draw_bounding_boxes(input_img, dict_results, dict_results_pos)
-        # annotated_img.save(os.path.join(self.output_dir, "annotated_image.jpg"))
 
         return dict_results, dict_results_pos
 
@@ -133,25 +126,8 @@ class YoloPosProcessing():
 
         return cropped_images
 
-    def draw_bounding_boxes(self, image, detection_results, classification_results):
-        global class_mapping
-        class_mapping = classification_results['names']
-        draw = ImageDraw.Draw(image)
-        for bbox, class_id in zip(detection_results["bboxes"], classification_results['pred']):
-            center_x, center_y, width, height = bbox
-            left = center_x - (width / 2)
-            top = center_y - (height / 2)
-            right = center_x + (width / 2)
-            bottom = center_y + (width / 2)
-            class_name = classification_results['names'][class_id[0]]
-            color = self.class_colors.get(class_name, 'white')
-            draw.rectangle([left, top, right, bottom], outline=color, width=2)
-            draw.text((left, top), class_name, fill=color)
-            
-        return image
-
 class ObjectDetectionEvaluator:
-    def __init__(self, detection_model, classification_model, img_size, img_size_pos, batch_size=1):
+    def __init__(self, detection_model, classification_model, img_size, img_size_pos, batch_size):
         self.detector = YoloSensitiveDetector(detection_model, classification_model, img_size, img_size_pos, batch_size)
         self.class_colors = {
             'HSIL': 'red',
@@ -163,14 +139,11 @@ class ObjectDetectionEvaluator:
     def load_yolo_annotation(self, txt_file, img_width, img_height):
         bboxes = []
         classes = []
-        normal_class_index = 2
         
         with open(txt_file, 'r') as f:
             for line in f:
                 values = list(map(float, line.strip().split()))
                 class_id = int(values[0])
-                if class_id == normal_class_index:
-                    continue  # Ignore class 2
                 
                 if len(values) == 5:
                     # Bounding box annotation
@@ -206,28 +179,34 @@ class ObjectDetectionEvaluator:
         
         return bboxes, classes
 
-    def draw_bounding_boxes(self, image, bboxes, classes):
-        draw = ImageDraw.Draw(image)
-        class_mapping_count = [('HSIL', 0), ('LSIL', 0), ('NORMAL', 0)]
-        global class_mapping   
+    def draw_bounding_boxes(self, image, bboxes, classes, confidences):
+            draw = ImageDraw.Draw(image)
+            class_mapping_count = [('HSIL', 0), ('LSIL', 0), ('NORMAL', 0)]
+            global class_mapping   
 
-        for bbox, cls in zip(bboxes, classes):
-            print(bboxes, classes)
-            center_x, center_y, width, height = bbox
-            left = center_x - (width / 2)
-            top = center_y - (height / 2)
-            right = center_x + (width / 2)
-            bottom = center_y + (width / 2)
-            class_name = self.class_mapping[cls]
-            color = self.class_colors.get(class_name, 'white')
-            draw.rectangle([left, top, right, bottom], outline=color, width=2)
-            draw.text((left, top), class_name, fill=color)
+            for bbox, cls, confidence in zip(bboxes, classes, confidences):
+                center_x, center_y, width, height = bbox
+                left = center_x - (width / 2)
+                top = center_y - (height / 2)
+                right = center_x + (width / 2)
+                bottom = center_y + (width / 2)
+                class_name = self.class_mapping[cls]
+                
+                # Incrementa a contagem da classe
+                for index, tuple_classes in enumerate(class_mapping_count):
+                    if class_name in tuple_classes[0]:
+                        class_mapping_count[index] = (class_name, tuple_classes[1] + 1)
 
-            for index, tuple_classes in enumerate(class_mapping_count):
-                if class_name in tuple_classes[0]:
-                    class_mapping_count[index] = (class_name,tuple_classes[1] + 1)
+                # Não desenha bounding boxes da classe 2
+                if cls == 2:
+                    continue
 
-        return image, class_mapping_count
+                color = self.class_colors.get(class_name, 'white')
+                draw.rectangle([left, top, right, bottom], outline=color, width=4)
+                text = f"{class_name}: {confidence:.2f}"
+                draw.text((left, top), text, fill=color, font_size=20)
+
+            return image, class_mapping_count
 
     def conv_to_polygon(self, box):
         x, y, w, h = box
@@ -425,12 +404,11 @@ class ObjectDetectionEvaluator:
         
     #     return merged_bboxes
     
-    async def evaluate(self, dir_path):
+    async def evaluate(self, dir_path, classes_of_interest, confidence_threshold):
 
         for file in os.listdir(dir_path):
             if file.endswith(('.jpg', '.png')):
                 img_path = os.path.join(dir_path, file)
-                print(img_path)
 
                 input_img = cv2.imread(img_path)
 
@@ -440,19 +418,22 @@ class ObjectDetectionEvaluator:
 
                 pred_bboxes = [bbox[:4] for bbox in detection_results['bboxes']]
                 pred_classes = [item for sublist in classification_results['pred'] for item in sublist]
-                
+                pred_confidences = [round(max(sublist), 2) for sublist in classification_results['softs']]
+
                 # Filtra predições relevantes
                 filtered_pred_bboxes = []
                 filtered_pred_classes = []
-                for bbox, cls in zip(pred_bboxes, pred_classes):
-                    if cls in [0, 1, 2]:  # Considera apenas as classes relevantes
+                filtered_pred_confidences = []
+                for bbox, cls, confidence in zip(pred_bboxes, pred_classes, pred_confidences):
+                    if cls in classes_of_interest and confidence >= confidence_threshold:  # Considera apenas as classes relevantes
                         filtered_pred_bboxes.append(bbox)
                         filtered_pred_classes.append(cls)
+                        filtered_pred_confidences.append(confidence)
 
                 # Combina caixas com IoU > 0
-                # filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
+                #filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
 
-                img_with_pred_boxes, report = self.draw_bounding_boxes(input_img_pil.copy(), filtered_pred_bboxes, filtered_pred_classes)
+                img_with_pred_boxes, report = self.draw_bounding_boxes(input_img_pil.copy(), filtered_pred_bboxes, filtered_pred_classes, filtered_pred_confidences)
                 
                 img_with_pred_boxes.save(os.path.join(self.detector.output_dir, f"{file}_pred.jpg"))
                 
@@ -466,20 +447,25 @@ if __name__ == "__main__":
     async def main():
         detection_model = YOLO('model/anomaly.pt')
         classification_model = YOLO('model/classification.pt')
-        img_size = 640
-        img_size_pos = 320
-        evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
+        img_size = 640 # Tamanho do input do modelo de detecção 640x640
+        img_size_pos = 320 # Tamanho do input do modelo de classificação 320x320
+        classes_of_interest = [0, 1, 2] # Classes de interesse a serem contabilizadas (0: HSIL, 1:LSIL, 2:NORMAL)
+        confidence_threshold = 0.9 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
+        batch_size = 8 # Ajustar conforme recurso computacional: Inferência em batch dos crops que chegam no modelo de classificação  
+        evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos, batch_size)
         dir_path = f"{config.getPath()}"
-        await evaluator.evaluate(dir_path)
+        await evaluator.evaluate(dir_path, classes_of_interest, confidence_threshold)
 
     asyncio.run(main())
 
 async def predict_image():
     detection_model = YOLO('model/anomaly.pt')
     classification_model = YOLO('model/classification.pt')
-    img_size = 640
-    img_size_pos = 320
-    evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos)
+    img_size = 640 # Tamanho do input do modelo de detecção 640x640
+    img_size_pos = 320 # Tamanho do input do modelo de classificação 320x320
+    classes_of_interest = [0, 1, 2] # Classes de interesse a serem contabilizadas (0: HSIL, 1:LSIL, 2:NORMAL)
+    confidence_threshold = 0.9 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
+    batch_size = 8 # Ajustar conforme recurso computacional: Inferência em batch dos crops que chegam no modelo de classificação
+    evaluator = ObjectDetectionEvaluator(detection_model, classification_model, img_size, img_size_pos, batch_size)
     dir_path = config.getPath()
-    return await evaluator.evaluate(dir_path)
-
+    return await evaluator.evaluate(dir_path, classes_of_interest, confidence_threshold)
