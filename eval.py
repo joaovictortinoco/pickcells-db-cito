@@ -203,7 +203,7 @@ class ObjectDetectionEvaluator:
                         class_mapping_count[index] = (class_name, tuple_classes[1] + 1)
 
                 # Não desenha bounding boxes da classe 2
-                if cls == 2:
+                if cls == 3:
                     continue
 
                 color = self.class_colors.get(class_name, 'white')
@@ -213,155 +213,14 @@ class ObjectDetectionEvaluator:
 
             return image, class_mapping_count
 
-    def conv_to_polygon(self, box):
-        x, y, w, h = box
-        return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
-
-    def intersect_box(self, box1, box2):
-        x1, y1, w1, h1 = box1
-        x2, y2, w2, h2 = box2
-
-        pol_box1 = self.conv_to_polygon([x1, y1, w1, h1])
-        pol_box2 = self.conv_to_polygon([x2, y2, w2, h2])
-
-        pol_area1 = Polygon(pol_box1)
-        pol_area2 = Polygon(pol_box2)
-
-        intersection_area = pol_area1.intersection(pol_area2).area
-        union_area = pol_area1.union(pol_area2).area
-
-        iou = intersection_area / union_area if union_area != 0 else 0
-        return iou
-
-    def merge_bounding_boxes(self, bboxes, iou_threshold):
-        if len(bboxes) == 0:
-            return []
-
-        merged_bboxes = []
-        bboxes = np.array(bboxes)
-
-        while len(bboxes) > 0:
-            current_bbox = bboxes[0]
-            del_indices = [0]
-
-            i = 1
-            while i < len(bboxes):
-                bbox = bboxes[i]
-                x_min = min(current_bbox[0], bbox[0])
-                y_min = min(current_bbox[1], bbox[1])
-                x_max = max(current_bbox[0] + current_bbox[2], bbox[0] + bbox[2])
-                y_max = max(current_bbox[1] + current_bbox[3], bbox[1] + bbox[3])
-
-                # Calcular a interseção e IoU
-                intersect_x1 = max(current_bbox[0], bbox[0])
-                intersect_y1 = max(current_bbox[1], bbox[1])
-                intersect_x2 = min(current_bbox[0] + current_bbox[2], bbox[0] + bbox[2])
-                intersect_y2 = min(current_bbox[1] + current_bbox[3], bbox[1] + bbox[3])
-
-                intersect_width = max(0, intersect_x2 - intersect_x1)
-                intersect_height = max(0, intersect_y2 - intersect_y1)
-
-                intersection_area = intersect_width * intersect_height
-                area1 = current_bbox[2] * current_bbox[3]
-                area2 = bbox[2] * bbox[3]
-                iou = intersection_area / float(area1 + area2 - intersection_area)
-
-                # Se a IoU for maior que o limiar, mesclar as bounding boxes
-                if iou > iou_threshold:
-                    x_min = min(current_bbox[0], bbox[0])
-                    y_min = min(current_bbox[1], bbox[1])
-                    x_max = max(current_bbox[0] + current_bbox[2], bbox[0] + bbox[2])
-                    y_max = max(current_bbox[1] + current_bbox[3], bbox[1] + bbox[3])
-                    current_bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
-                    del_indices.append(i)
-                else:
-                    i += 1
-
-            merged_bboxes.append(current_bbox)
-            bboxes = np.delete(bboxes, del_indices, axis=0)
-
-        return merged_bboxes
-
-    def non_max_suppression(self, bboxes, threshold):
-        if len(bboxes) == 0:
-            return []
-
-        bboxes = np.array(bboxes)
-        x1 = bboxes[:, 0]
-        y1 = bboxes[:, 1]
-        x2 = bboxes[:, 0] + bboxes[:, 2]
-        y2 = bboxes[:, 1] + bboxes[:, 3]
-        areas = bboxes[:, 2] * bboxes[:, 3]
-
-        keep = []
-        indices = np.argsort(y2)
-
-        while len(indices) > 0:
-            last = len(indices) - 1
-            i = indices[last]
-            keep.append(i)
-
-            xx1 = np.maximum(x1[i], x1[indices[:last]])
-            yy1 = np.maximum(y1[i], y1[indices[:last]])
-            xx2 = np.minimum(x2[i], x2[indices[:last]])
-            yy2 = np.minimum(y2[i], y2[indices[:last]])
-
-            w = np.maximum(0, xx2 - xx1)
-            h = np.maximum(0, yy2 - yy1)
-
-            intersection = w * h
-            iou = intersection / (areas[i] + areas[indices[:last]] - intersection)
-
-            indices = np.delete(indices, np.concatenate(([last], np.where(iou > threshold)[0])))
-
-        return bboxes[keep]
-
-    def intersection_over_union(self, box1, box2):
-        # Extrair coordenadas dos centros e dimensões das bounding boxes
-        x1_box1, y1_box1, w1_box1, h1_box1 = box1
-        x1_box2, y1_box2, w2_box2, h2_box2 = box2
-
-        # Calcular coordenadas dos cantos das bounding boxes
-        x1_box1_left = x1_box1 - w1_box1 / 2
-        y1_box1_top = y1_box1 - h1_box1 / 2
-        x1_box1_right = x1_box1 + w1_box1 / 2
-        y1_box1_bottom = y1_box1 + h1_box1 / 2
-
-        x1_box2_left = x1_box2 - w2_box2 / 2
-        y1_box2_top = y1_box2 - h2_box2 / 2
-        x1_box2_right = x1_box2 + w2_box2 / 2
-        y1_box2_bottom = y1_box2 + h2_box2 / 2
-
-        # Encontrar intersecção dos limites das bounding boxes
-        x_left = max(x1_box1_left, x1_box2_left)
-        y_top = max(y1_box1_top, y1_box2_top)
-        x_right = min(x1_box1_right, x1_box2_right)
-        y_bottom = min(y1_box1_bottom, y1_box2_bottom)
-
-        # Calcular área da intersecção
-        if x_right <= x_left or y_bottom <= y_top:
-            intersection_area = 0
-        else:
-            intersection_area = (x_right - x_left) * (y_bottom - y_top)
-
-        # Calcular áreas das bounding boxes individuais
-        area_box1 = w1_box1 * h1_box1
-        area_box2 = w2_box2 * h2_box2
-
-        # Calcular área da união
-        union_area = area_box1 + area_box2 - intersection_area
-
-        # Calcular IoU (Intersection over Union)
-        iou = intersection_area / union_area if union_area > 0 else 0
-        return iou
 
     def calculate_bbox_area(self, width, height):
         return width * height
 
     def calculate_union_area(self, box1, box2):
         # Extrair coordenadas e dimensões das caixas delimitadoras
-        x1_min, y1_min, w1, h1 = box1
-        x2_min, y2_min, w2, h2 = box2
+        x1_min, y1_min, w1, h1, _ = box1
+        x2_min, y2_min, w2, h2, _ = box2
 
         # Calcular x_max e y_max para cada caixa
         x1_max = x1_min + w1
@@ -390,8 +249,8 @@ class ObjectDetectionEvaluator:
         return union_area
 
     def is_inside(self, box1, box2):
-        x1_min, y1_min, w1, h1 = box1
-        x2_min, y2_min, w2, h2 = box2
+        x1_min, y1_min, w1, h1, _ = box1
+        x2_min, y2_min, w2, h2, _ = box2
 
         x1_max = x1_min + w1
         y1_max = y1_min + h1
@@ -402,8 +261,8 @@ class ObjectDetectionEvaluator:
 
     def calculate_iou(self, box1, box2):
         # Extrair coordenadas e dimensões das caixas delimitadoras
-        x1_min, y1_min, w1, h1 = box1
-        x2_min, y2_min, w2, h2 = box2
+        x1_min, y1_min, w1, h1, _ = box1
+        x2_min, y2_min, w2, h2, _ = box2
 
         # Calcular x_max e y_max para cada caixa
         x1_max = x1_min + w1
@@ -431,8 +290,8 @@ class ObjectDetectionEvaluator:
 
     def min_distance_between_boxes(self, box1, box2):
         # Extrair coordenadas e dimensões das caixas delimitadoras
-        x1_min, y1_min, w1, h1 = box1
-        x2_min, y2_min, w2, h2 = box2
+        x1_min, y1_min, w1, h1, _ = box1
+        x2_min, y2_min, w2, h2, _ = box2
 
         # Calcular x_max e y_max para cada caixa
         x1_max = x1_min + w1
@@ -464,8 +323,8 @@ class ObjectDetectionEvaluator:
 
     def partial_inscrit_bbox(self, box1, box2):
         # Extrair coordenadas e dimensões das caixas delimitadoras
-        x1_min, y1_min, w1, h1 = box1
-        x2_min, y2_min, w2, h2 = box2
+        x1_min, y1_min, w1, h1, _ = box1
+        x2_min, y2_min, w2, h2, _ = box2
 
         # Calcular x_max e y_max para cada caixa
         x1_max = x1_min + w1
@@ -562,15 +421,14 @@ class ObjectDetectionEvaluator:
         large_objects = []
 
         for ann in annotations:
-            _, _, _, bw, bh = ann
+            _, _, _, bw, bh, _ = ann
             area = bw * bh
-            # print (area_threshold, area )
+
             if area < area_threshold * 1.3:
                 small_objects.append(ann)
             else:
                 large_objects.append(ann)
 
-            # small_objects.append(ann)
         return small_objects, large_objects
 
     def sum_cluster_bboxes(self, clusters):
@@ -579,22 +437,20 @@ class ObjectDetectionEvaluator:
             if len(cluster) > 1:
                 class_id = cluster[0][0]
 
-                # Inicializar coordenadas extremas
                 x_min = min(obj[1] for obj in cluster)
                 y_min = min(obj[2] for obj in cluster)
-                x_max = max(obj[1] + obj[3] for obj in cluster)  # x + xw
-                y_max = max(obj[2] + obj[4] for obj in cluster)  # y + yh
+                x_max = max(obj[1] + obj[3] for obj in cluster)
+                y_max = max(obj[2] + obj[4] for obj in cluster)
 
-                # Calcular a largura e altura combinadas com base nos valores extremos
                 combined_width = x_max - x_min
                 combined_height = y_max - y_min
 
-                # Ajustar para o formato [class_id, x, y, xw, yh]
                 new_x = x_min
                 new_y = y_min
 
-                # Adicionar anotação combinada ao cluster
-                clustered_annotations.append((class_id, new_x, new_y, combined_width, combined_height))
+                combined_confidence = max(obj[5] for obj in cluster)
+
+                clustered_annotations.append((class_id, new_x, new_y, combined_width, combined_height, combined_confidence))
             else:
                 clustered_annotations.append(cluster[0])
         return clustered_annotations
@@ -617,7 +473,7 @@ class ObjectDetectionEvaluator:
 
     def agg_clusters_objects(self, annotations, area_threshold, distance_threshold, iou_threshold,
                              overlap_threshold, img_height, img_width, use_distance=True):
-
+        print(annotations)
         small_objects, large_objects = self.filter_small_objects(annotations, area_threshold)
         # print('small_objects', small_objects)
         # print('large_objects', large_objects)
@@ -626,7 +482,6 @@ class ObjectDetectionEvaluator:
         clusters = self.cluster_small_objects(small_objects, iou_threshold, distance_threshold,
                                               area_threshold, overlap_threshold, img_width,
                                               img_height, use_distance)
-        # print('clusters', clusters)
         clustered_annotations = self.sum_cluster_bboxes(clusters)
         annotations_final = large_objects + clustered_annotations
 
@@ -669,9 +524,6 @@ class ObjectDetectionEvaluator:
                 pred_bboxes = [bbox[:4] for bbox in detection_results['bboxes']]
                 pred_classes = [item for sublist in classification_results['pred'] for item in sublist]
                 pred_confidences = [round(max(sublist), 2) for sublist in classification_results['softs']]
-                print(pred_bboxes)
-                print(pred_classes)
-                print(pred_confidences)
                 # Filtra predições relevantes
                 filtered_pred_bboxes = []
                 filtered_pred_classes = []
@@ -697,7 +549,7 @@ class ObjectDetectionEvaluator:
                             xw = width
                             yh = height
 
-                            merger_objs.append([cls, x, y, xw, yh])
+                            merger_objs.append([cls, x, y, xw, yh, confidence])
 
                     if img_width > 1600:
                         area_threshold = 30000
@@ -708,13 +560,14 @@ class ObjectDetectionEvaluator:
 
                     # Combina caixas com IoU > 0
                     # filtered_pred_bboxes = self.merge_boxes_same_class(filtered_pred_bboxes, filtered_pred_classes)
+
                     merger_objs = self.agg_clusters_objects(annotations=merger_objs, area_threshold=area_threshold,
                                                             distance_threshold=distance_threshold, iou_threshold=0.,
                                                             overlap_threshold=0.1, img_height=img_height,
                                                             img_width=img_width, use_distance=True)
                     for obj_bbox in merger_objs:
                         # print('obj_bbox', obj_bbox)
-                        cls, x, y, xw, yh = obj_bbox
+                        cls, x, y, xw, yh, confidence = obj_bbox
                         center_x = x + (xw / 2)
                         center_y = y + (yh / 2)
                         width = xw
