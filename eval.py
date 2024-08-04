@@ -203,7 +203,7 @@ class ObjectDetectionEvaluator:
                         class_mapping_count[index] = (class_name, tuple_classes[1] + 1)
 
                 # Não desenha bounding boxes da classe 2
-                if cls == 3:
+                if cls == 2:
                     continue
 
                 color = self.class_colors.get(class_name, 'white')
