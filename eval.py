@@ -592,7 +592,7 @@ class ObjectDetectionEvaluator:
 
                 # print("Removing file {}".format(file))
 
-                # os.remove(dir_path + '/' + file)
+                os.remove(dir_path + '/' + file)
 
                 return report
 
