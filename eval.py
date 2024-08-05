@@ -610,7 +610,7 @@ async def predict_image_local(path: str):
     img_size = 640 # Tamanho do input do modelo de detecção 640x640
     img_size_pos = 320 # Tamanho do input do modelo de classificação 320x320
     classes_of_interest = [0, 1, 2] # Classes de interesse a serem contabilizadas (0: HSIL, 1:LSIL, 2:NORMAL)
-    confidence_threshold = 0.9 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
+    confidence_threshold = 0.8 # Threshold de confiança da saída do modelo de classificação para reduzir falsos positivos
     batch_size = 16 # Ajustar conforme recurso computacional: Inferência em batch dos crops que chegam no modelo de classificação
     merged_objects = True # Utiliza a função 'agg_clusters_objects' para fazer o merge nas bboxes
     iou = 0.4 # Threshold de iou usando no Non max supression do localizador. Quanto menor o threshold, menos bounding boxes localizadas
@@ -706,6 +706,15 @@ if __name__ == "__main__":
         if len(uploaded_files) != 0:
             manage_experiment(uploaded_files=uploaded_files)
             uploaded_files = []
+
+    for i in range(0,5):
+        for dirpath, dirnames, filenames in os.walk(config.getPathLocal()):
+            for filename in filenames:
+                full_path = os.path.join(dirpath, filename)
+                uploaded_files.append(dirpath)
+            if len(uploaded_files) != 0:
+                manage_experiment(uploaded_files=uploaded_files)
+                uploaded_files = []
 
 
 async def predict_image():
